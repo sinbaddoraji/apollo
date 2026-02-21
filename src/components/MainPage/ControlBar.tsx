@@ -26,7 +26,8 @@ export function ControlBar({
           cursor: playingIndex !== null ? "pointer" : "not-allowed",
         }}
       >
-        ⏹ Stop
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" style={{display:'inline',verticalAlign:'middle',marginRight:'4px'}}><rect width="10" height="10"/></svg>
+        Stop
       </button>
 
       <span className="ml-auto text-sm text-lavender italic">

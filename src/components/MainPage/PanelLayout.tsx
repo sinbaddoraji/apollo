@@ -85,7 +85,7 @@ function PiecesActions({
             e.currentTarget.style.background = "rgba(125,107,145,0.2)";
           }}
         >
-          <span className="text-[10px]">■</span>
+          <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><rect width="8" height="8"/></svg>
           <span>Stop</span>
         </button>
       )}

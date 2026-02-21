@@ -114,7 +114,11 @@ export function PieceCard({
           }
         }}
       >
-        {isPlaying ? "■" : "▶"}
+        {isPlaying ? (
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><rect width="10" height="10"/></svg>
+        ) : (
+          <svg width="10" height="12" viewBox="0 0 10 12" fill="currentColor"><polygon points="0,0 10,6 0,12"/></svg>
+        )}
       </button>
     </div>
   );
