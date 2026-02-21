@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import * as Tone from "tone";
 import type { Piece } from "./types";
 import { classicalPieces } from "../../data/classicalPieces";
 import { SheetMusicModal } from "./SheetMusicModal";
@@ -27,6 +28,28 @@ export default function MainPage() {
     () => [...generated, ...classicalPieces],
     [generated],
   );
+
+  // Unlock AudioContext on first user interaction (critical for iOS)
+  useEffect(() => {
+    const unlock = () => {
+      Tone.start();
+      const ctx = Tone.getContext().rawContext;
+      if (ctx.state !== "running") {
+        (ctx as AudioContext).resume?.();
+      }
+      document.removeEventListener("touchstart", unlock);
+      document.removeEventListener("touchend", unlock);
+      document.removeEventListener("click", unlock);
+    };
+    document.addEventListener("touchstart", unlock, { once: true });
+    document.addEventListener("touchend", unlock, { once: true });
+    document.addEventListener("click", unlock, { once: true });
+    return () => {
+      document.removeEventListener("touchstart", unlock);
+      document.removeEventListener("touchend", unlock);
+      document.removeEventListener("click", unlock);
+    };
+  }, []);
 
   useKeyboardShortcuts({
     list, selectedIndex, setSelectedIndex,

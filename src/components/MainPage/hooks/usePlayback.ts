@@ -110,7 +110,18 @@ export function usePlayback() {
   }
 
   async function handlePlay(piece: Piece, index: number) {
-    await Tone.start();
+    // CRITICAL: Tone.start() must be the first thing called in the user gesture
+    // call stack. On iOS Safari, any async work before this will break AudioContext resume.
+    const startPromise = Tone.start();
+
+    // Also explicitly resume the raw AudioContext for iOS compatibility
+    const ctx = Tone.getContext().rawContext;
+    if (ctx.state !== "running") {
+      (ctx as AudioContext).resume?.();
+    }
+
+    await startPromise;
+
     stopPlayback();
 
     const newAnalyser = new Tone.Analyser("fft", 256);
@@ -131,6 +142,7 @@ export function usePlayback() {
     let melodySynth: any;
     let bassSynth: any;
     let chordsSynth: any;
+    let loaded: Promise<void>;
 
     if (hasHarmony) {
       const multiSynth = buildSynth(newAnalyser, piece.tempo);
@@ -138,14 +150,25 @@ export function usePlayback() {
       bassSynth = multiSynth.bass;
       chordsSynth = multiSynth.chords;
       cleanup = multiSynth.cleanup;
+      loaded = multiSynth.loaded;
       setEffects(multiSynth.effects);
     } else {
       const singleSynth = buildSingleSynth(newAnalyser);
       melodySynth = singleSynth.synth;
+      loaded = singleSynth.loaded;
       cleanup = singleSynth.cleanup;
     }
 
     synthRef.current = cleanup;
+    setPlayingIndex(index);
+
+    // Wait for piano samples to fully load before scheduling
+    await loaded;
+
+    // Re-check AudioContext state after sample loading (iOS can suspend it again)
+    if (Tone.getContext().rawContext.state !== "running") {
+      await (Tone.getContext().rawContext as AudioContext).resume?.();
+    }
 
     const melodyPart = schedulePart(
       melodySynth,
@@ -192,7 +215,6 @@ export function usePlayback() {
     });
 
     Tone.getTransport().start();
-    setPlayingIndex(index);
   }
 
   return {

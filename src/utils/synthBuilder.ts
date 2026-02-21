@@ -60,20 +60,24 @@ function buildPiano(
   volumeDb: number,
   destination: Tone.InputNode,
   release: number = 1.5
-): { sampler: Tone.Sampler; volume: Tone.Volume } {
+): { sampler: Tone.Sampler; volume: Tone.Volume; loaded: Promise<void> } {
+  let resolveLoaded: () => void;
+  const loaded = new Promise<void>((resolve) => { resolveLoaded = resolve; });
+
   const sampler = new Tone.Sampler({
     urls: pianoSamples.urls,
     baseUrl: pianoSamples.baseUrl,
     release: release,
     attack: 0.005,
     curve: "exponential",
+    onload: () => resolveLoaded(),
   });
 
   const vol = new Tone.Volume(volumeDb);
   vol.connect(destination);
   sampler.connect(vol);
 
-  return { sampler, volume: vol };
+  return { sampler, volume: vol, loaded };
 }
 
 function buildReverb(): Tone.Reverb {
@@ -84,7 +88,7 @@ function buildReverb(): Tone.Reverb {
   });
 }
 
-export function buildSynth(analyser?: Tone.Analyser, bpm: number = 80): MultiSynthResult {
+export function buildSynth(analyser?: Tone.Analyser, bpm: number = 80): MultiSynthResult & { loaded: Promise<void> } {
   const beatSec = 60 / bpm;
 
   const melodyRelease = clamp(beatSec * 1.0, 0.8, 2.0);
@@ -111,14 +115,14 @@ export function buildSynth(analyser?: Tone.Analyser, bpm: number = 80): MultiSyn
   // Melody
   const melodyPanner = new Tone.Panner(0);
   melodyPanner.connect(masterVol);
-  const { sampler: melodySampler, volume: melodyVolume } = buildPiano(-3, melodyPanner, melodyRelease);
+  const { sampler: melodySampler, volume: melodyVolume, loaded: melodyLoaded } = buildPiano(-3, melodyPanner, melodyRelease);
 
   // Bass
   const bassPanner = new Tone.Panner(-0.3);
   bassPanner.connect(masterVol);
   const bassEQ = new Tone.EQ3({ low: 4, mid: -3, high: -2 });
   bassEQ.connect(bassPanner);
-  const { sampler: bassSampler, volume: bassVolume } = buildPiano(-6, bassEQ, bassRelease);
+  const { sampler: bassSampler, volume: bassVolume, loaded: bassLoaded } = buildPiano(-6, bassEQ, bassRelease);
 
   // Chords
   const chordsPanner = new Tone.Panner(0.3);
@@ -126,7 +130,9 @@ export function buildSynth(analyser?: Tone.Analyser, bpm: number = 80): MultiSyn
   const chorus = new Tone.Chorus({ frequency: 1.5, depth: 0.7, wet: 0.2 });
   chorus.start();
   chorus.connect(chordsPanner);
-  const { sampler: chordsSampler, volume: chordsVolume } = buildPiano(-10, chorus, chordsRelease);
+  const { sampler: chordsSampler, volume: chordsVolume, loaded: chordsLoaded } = buildPiano(-10, chorus, chordsRelease);
+
+  const loaded = Promise.all([melodyLoaded, bassLoaded, chordsLoaded]).then(() => {});
 
   const effects: EffectNodes = {
     melodyVolume,
@@ -142,6 +148,7 @@ export function buildSynth(analyser?: Tone.Analyser, bpm: number = 80): MultiSyn
     bass: createVelocitySampler(bassSampler),
     chords: createVelocitySampler(chordsSampler),
     effects,
+    loaded,
     cleanup: () => {
       melodySampler.dispose();
       bassSampler.dispose();
@@ -163,10 +170,11 @@ export function buildSynth(analyser?: Tone.Analyser, bpm: number = 80): MultiSyn
   };
 }
 
-export function buildSingleSynth(analyser?: Tone.Analyser): SynthResult {
+export function buildSingleSynth(analyser?: Tone.Analyser): SynthResult & { loaded: Promise<void> } {
   const result = buildSynth(analyser);
   return {
     synth: result.melody,
+    loaded: result.loaded,
     cleanup: result.cleanup,
   };
 }
